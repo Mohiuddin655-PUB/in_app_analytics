@@ -1,59 +1,96 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_analytics/in_app_analytics.dart';
 
-/// Unit and widget tests for the `your_app` Flutter application.
-///
-/// This test suite validates:
-/// - Widget rendering and layout behavior
-/// - State updates and reactive UI changes
-/// - App navigation and interaction
-///
-/// All tests in this file run automatically via:
-/// ```bash
-/// flutter test
-/// ```
+/// A mock delegate used for testing Analytics events and errors.
+class MockAnalyticsDelegate extends AnalyticsDelegate {
+  final List<AnalyticsEvent> loggedEvents = [];
+  final List<AnalyticsError> loggedErrors = [];
+  final List<Map<String, dynamic>> loggedMessages = [];
+
+  @override
+  Future<void> event(AnalyticsEvent event) async {
+    loggedEvents.add(event);
+  }
+
+  @override
+  Future<void> error(AnalyticsError error) async {
+    loggedErrors.add(error);
+  }
+
+  @override
+  Future<void> log(String name, String? msg, String reason) async {
+    loggedMessages.add({
+      'name': name,
+      'msg': msg,
+      'reason': reason,
+    });
+  }
+}
+
 void main() {
-  /// Group of tests for verifying widget behavior and layout.
-  group('Widget Tests', () {
-    /// Ensures the main app renders without throwing any exceptions.
-    testWidgets('App renders correctly', (WidgetTester tester) async {
-      // Arrange: Load the main app widget into the testing environment.
-      await tester.pumpWidget(const MyApp());
+  // Ensures Flutter engine bindings are initialized before any test.
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-      // Act: Trigger an initial frame.
-      await tester.pump();
+  group('Analytics Tests', () {
+    late MockAnalyticsDelegate mock;
 
-      // Assert: Check if the expected text or widget appears in the tree.
-      expect(find.text('Welcome'), findsOneWidget);
+    setUp(() {
+      mock = MockAnalyticsDelegate();
+
+      // Initialize Analytics singleton
+      Analytics.init(
+        enabled: true,
+        delegate: mock,
+        showLogs: false,
+        showSuccessLogs: false,
+      );
     });
 
-    /// Validates navigation between screens.
-    testWidgets('Navigation works as expected', (WidgetTester tester) async {
-      await tester.pumpWidget(const MyApp());
+    test('logs an event successfully', () async {
+      Analytics.event("user_signup", msg: "User created an account");
 
-      // Act: Tap a button that should navigate to a new page.
-      await tester.tap(find.text('Next'));
-      await tester.pumpAndSettle();
+      await Future.delayed(const Duration(milliseconds: 10));
 
-      // Assert: Verify navigation occurred.
-      expect(find.text('Next Page'), findsOneWidget);
+      expect(mock.loggedEvents.length, 1);
+      final event = mock.loggedEvents.first;
+      expect(event.name, "user_signup");
+      expect(event.msg, "User created an account");
+      expect(event.platform?.isNotEmpty, isTrue);
     });
 
-    /// Tests that user interaction updates the state as expected.
-    testWidgets('Counter increments when button pressed', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(const MyApp());
+    test('logs an error using delegate', () async {
+      final error = AnalyticsError(
+        msg: "Test error",
+        platform: "ios",
+        time: DateTime.now().toIso8601String(),
+      );
 
-      // Verify initial state.
-      expect(find.text('0'), findsOneWidget);
-      expect(find.text('1'), findsNothing);
+      await mock.error(error);
+      expect(mock.loggedErrors.length, 1);
+      expect(mock.loggedErrors.first.msg, "Test error");
+    });
 
-      // Simulate user tap on the "+" FloatingActionButton.
-      await tester.tap(find.byIcon(Icons.add));
-      await tester.pump();
+    test('logs a message with reason', () async {
+      Analytics.log("api_call", "init", msg: "Fetching user profile");
 
-      // Verify state update.
-      expect(find.text('1'), findsOneWidget);
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(mock.loggedMessages.length, 1);
+      final log = mock.loggedMessages.first;
+      expect(log['name'], "api_call");
+      expect(log['reason'], "init");
+      expect(log['msg'], "Fetching user profile");
+    });
+
+    test('wraps async calls with Analytics.call()', () async {
+      await Analytics.call(name: "fetch_data", () async {
+        await Future.delayed(const Duration(milliseconds: 5));
+      }, msg: "Data fetched successfully");
+
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(mock.loggedMessages.isNotEmpty, true);
+      expect(mock.loggedMessages.first['name'], "fetch_data");
     });
   });
 }

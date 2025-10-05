@@ -1,22 +1,18 @@
-## 1.0.1
-
-* Improve settings delegate
-
 ## 1.0.0
+- Singleton manager for centralized analytics and logging.
+- Tracks **custom events**, **logs**, and **errors** across the entire app.
+- Captures **Flutter framework errors** via `FlutterError.onError`.
+- Handles **platform-level exceptions** using `PlatformDispatcher.onError`.
+- Supports structured data models:
+  - `AnalyticsEvent` — for event tracking.
+  - `AnalyticsError` — for error reporting with stack traces.
+- Optional **delegate system** for integrating custom analytics services (e.g., Firebase, Sentry).
+- Configurable behavior:
+  - `enabled` — toggle analytics globally.
+  - `showLogs`, `showSuccessLogs`, `showLogTime` — for development insights.
+- Unified `call()` helper for safe execution of async functions with automatic success/failure tracking.
+- Provides built-in **logging and performance measurement hooks**.
+- Works seamlessly in both **Flutter UI** and **background isolates**.
+- Minimal dependencies and **zero setup overhead** — works out of the box.
 
-- Singleton manager for app-wide settings.
-- Supports **primitive types**: `int`, `double`, `String`, `bool`, `null`.
-- Supports **collections**: `List<int>`, `List<double>`, `List<String>`, `List<bool>`.
-- Supports **maps and JSON** with nested structures.
-- Automatic **DataType detection** for stored values.
-- Optional **custom storage delegate** for local or remote persistence.
-- Operations:
-    - `get` — retrieve a value with type safety.
-    - `set` — store a value.
-    - `increment` — increment numeric values.
-    - `arrayUnion` — add elements to a list without duplicates.
-    - `arrayRemove` — remove elements from a list.
-- Handles **empty lists and maps** gracefully.
-- Built-in **logging support** for debugging.
-- Deep string parsing for numeric and boolean detection.
 

@@ -1,204 +1,48 @@
 import 'dart:async';
 import 'dart:developer' as dev;
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'delegate.dart';
+import 'event.dart';
+
+/// The default analytics name identifier.
 const kAnalytics = "ANALYTICS";
 
-String? get _platform => kIsWeb
-    ? "web"
-    : kIsWasm
-    ? 'wasm'
-    : Platform.isAndroid
-    ? "android"
-    : Platform.isIOS
-    ? "ios"
-    : Platform.isFuchsia
-    ? "fuchsia"
-    : Platform.isMacOS
-    ? "macos"
-    : Platform.isWindows
-    ? "windows"
-    : Platform.isLinux
-    ? "linux"
-    : null;
-
-enum AnalyticsErrorType {
-  assertion,
-  error,
-  platform;
-
-  static AnalyticsErrorType? parse(Object? source) {
-    try {
-      return values.firstWhere((e) {
-        if (e == source) return true;
-        if (e.index == source) return true;
-        if (e.name == source) return true;
-        return false;
-      });
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-class AnalyticsError {
-  final String? time;
-  final String? platform;
-  final String? msg;
-  final String? details;
-  final AnalyticsErrorType? type;
-
-  const AnalyticsError.empty() : this();
-
-  const AnalyticsError({
-    this.time,
-    this.platform,
-    this.msg,
-    this.details,
-    this.type,
-  });
-
-  factory AnalyticsError.error(FlutterErrorDetails details) {
-    return AnalyticsError(
-      platform: _platform,
-      time: DateTime.now().toIso8601String(),
-      msg: details.exception.toString(),
-      details: details.exceptionAsString(),
-      type: details.exception is AssertionError
-          ? AnalyticsErrorType.assertion
-          : AnalyticsErrorType.error,
-    );
-  }
-
-  factory AnalyticsError.platform(Object exception, StackTrace stackTrace) {
-    return AnalyticsError(
-      platform: _platform,
-      time: DateTime.now().toIso8601String(),
-      type: AnalyticsErrorType.platform,
-      msg: exception.toString(),
-      details: stackTrace.toString(),
-    );
-  }
-
-  factory AnalyticsError.parse(Object? source) {
-    if (source is! Map || source.isEmpty) return AnalyticsError.empty();
-    final time = source['time'];
-    final platform = source['platform'];
-    final msg = source['msg'];
-    final details = source['details'];
-    final type = source['type'];
-    return AnalyticsError(
-      time: time is String ? time : null,
-      platform: platform is String ? platform : null,
-      msg: msg is String ? msg : null,
-      details: details is String ? details : null,
-      type: AnalyticsErrorType.parse(type),
-    );
-  }
-
-  Map<String, dynamic>? get json {
-    final x = {
-      if ((time ?? '').isNotEmpty) "time": time,
-      if ((platform ?? '').isNotEmpty) "platform": platform,
-      if ((msg ?? '').isNotEmpty) "msg": msg,
-      if (type != null) "type": type?.name,
-      if (details != null) "details": details,
-    };
-    return x.isEmpty ? null : x;
-  }
-
-  @override
-  String toString() => "$AnalyticsError(msg: $msg, details: $details)";
-}
-
-class AnalyticsEvent {
-  final String name;
-  final int time;
-  final String? platform;
-  final String? msg;
-  final Map<String, String>? props;
-
-  const AnalyticsEvent.empty() : this(name: '');
-
-  const AnalyticsEvent({
-    required this.name,
-    this.time = 0,
-    this.platform,
-    this.msg,
-    this.props,
-  });
-
-  factory AnalyticsEvent.create(
-      String name, {
-        String? msg,
-        Map<String, String>? props,
-      }) {
-    return AnalyticsEvent(
-      platform: _platform,
-      time: DateTime.now().millisecondsSinceEpoch,
-      name: name,
-      msg: msg,
-      props: props,
-    );
-  }
-
-  factory AnalyticsEvent.parse(Object? source) {
-    if (source is! Map || source.isEmpty) return AnalyticsEvent.empty();
-    final name = source['name'];
-    if (name is! String || name.isEmpty) return AnalyticsEvent.empty();
-    final time = source['time'];
-    final platform = source['platform'];
-    final msg = source['msg'];
-    final props = source['props'];
-    return AnalyticsEvent(
-      name: name,
-      time: time is num ? time.toInt() : 0,
-      platform: platform is String ? platform : null,
-      msg: msg is String ? msg : null,
-      props: props is Map
-          ? props.map((k, v) => MapEntry(k.toString(), v.toString()))
-          : null,
-    );
-  }
-
-  Map<String, dynamic>? get json {
-    final x = {
-      if (name.isNotEmpty) "name": name,
-      if (time > 0) "time": time,
-      if ((platform ?? '').isNotEmpty) "platform": platform,
-      if ((msg ?? '').isNotEmpty) "msg": msg,
-      if (props != null || props!.isNotEmpty) "props": props,
-    };
-    return x.isEmpty ? null : x;
-  }
-
-  @override
-  String toString() => "$AnalyticsEvent(name: $name, msg: $msg)";
-}
-
-abstract class AnalyticsDelegate {
-  Future<void> error(AnalyticsError error);
-
-  Future<void> event(AnalyticsEvent event);
-
-  Future<void> log(String name, String? msg, String reason);
-}
-
+/// The main analytics manager used to record events and errors.
 class Analytics {
+  /// Whether analytics tracking is enabled.
   final bool enabled;
+
+  /// Whether to show logs in the console.
   final bool showLogs;
+
+  /// Whether to show success logs.
   final bool showSuccessLogs;
+
+  /// Whether to include time in log entries.
   final bool showLogTime;
+
+  /// Log level for error entries.
   final int? errorLogLevel;
+
+  /// Log level for success entries.
   final int? successLogLevel;
+
+  /// Sequence number for success logs.
   final int? successSequenceNumber;
+
+  /// Sequence number for error logs.
   final int? errorSequenceNumber;
+
+  /// The analytics logger name.
   final String name;
+
+  /// The analytics delegate implementation.
   final AnalyticsDelegate? delegate;
 
+  /// Private constructor for [Analytics].
   const Analytics._({
     this.enabled = false,
     this.showLogs = true,
@@ -214,18 +58,24 @@ class Analytics {
 
   static Analytics? _i;
 
+  /// Returns the current [Analytics] instance.
   static Analytics get i => _i ??= Analytics._();
 
+  /// Writes a formatted log entry.
   void _logs(
     Object? msg, {
     String? name,
     String? status,
+    String? icon,
     int? level,
     int? sequenceNumber,
   }) {
     String log = '';
+    if (icon != null && icon.isNotEmpty) {
+      log = "$log$icon ";
+    }
     if (name != null && name.isNotEmpty) {
-      log = name;
+      log = "$log$name";
     }
     if (msg != null) {
       log = "$log:$msg";
@@ -242,57 +92,59 @@ class Analytics {
     );
   }
 
-  void _logSuccess(Object? msg, {String? name}) {
+  void _logSuccess(Object? msg, {String? name, String? icon}) {
     if (!enabled || !showSuccessLogs) return;
     _logs(
       msg,
       status: "done!",
+      icon: icon ?? "✅",
       name: name,
       level: successLogLevel,
       sequenceNumber: successSequenceNumber,
     );
   }
 
-  void _logError(Object? msg, {String? name}) {
+  void _logError(Object? msg, {String? name, String? icon}) {
     if (!enabled || !showLogs) return;
     _logs(
       msg,
       status: 'failed!',
+      icon: icon ?? "️️❌️",
       name: name,
       level: errorLogLevel,
       sequenceNumber: errorSequenceNumber,
     );
   }
 
-  void _error(AnalyticsError error) async {
-    if (!enabled) return;
-    if (delegate == null) return;
+  /// Logs ❌ or 🔥 if sending fails
+  ///
+  void _error(AnalyticsError error, {String? icon}) async {
+    if (!enabled || delegate == null) return;
     try {
       await delegate!.error(error);
+      _logError(error.msg, name: "error", icon: icon ?? error.sign ?? "❌");
     } catch (msg) {
-      _logError(msg, name: "error");
+      _logError(msg, name: "error", icon: "🔥");
     }
   }
 
-  void _event(AnalyticsEvent event) async {
-    if (!enabled) return;
-    if (delegate == null) return;
+  void _event(AnalyticsEvent event, {String? icon}) async {
+    if (!enabled || delegate == null) return;
     try {
       await delegate!.event(event);
-      _logSuccess(event.msg, name: event.name);
+      _logSuccess(event.msg, name: event.name, icon: icon ?? event.sign ?? "✅");
     } catch (msg) {
-      _logError(msg, name: event.name);
+      _logError(msg, name: event.name, icon: "⚠️");
     }
   }
 
-  void _log(String name, String reason, {String? msg}) async {
-    if (!enabled) return;
-    if (delegate == null) return;
+  void _log(String name, String reason, {String? msg, String? icon}) async {
+    if (!enabled || delegate == null) return;
     try {
       await delegate!.log(name, msg, reason);
-      _logSuccess(msg, name: name);
+      _logSuccess(msg, name: name, icon: icon ?? "👌");
     } catch (msg) {
-      _logError(msg, name: name);
+      _logError(msg, name: name, icon: "❌");
     }
   }
 
@@ -311,6 +163,15 @@ class Analytics {
     };
   }
 
+  /// Initializes analytics globally.
+  ///
+  /// Example:
+  /// ```dart
+  /// Analytics.init(
+  ///   enabled: true,
+  ///   delegate: MyAnalyticsDelegate(),
+  /// );
+  /// ```
   static void init({
     bool enabled = kReleaseMode,
     String name = kAnalytics,
@@ -335,43 +196,89 @@ class Analytics {
       errorLogLevel: errorLogLevel,
       errorSequenceNumber: errorSequenceNumber,
       successLogLevel: successLogLevel,
-      successSequenceNumber: successLogLevel,
+      successSequenceNumber: successSequenceNumber,
       delegate: delegate,
     );
     i._handleWidgetError(widgetError);
     i._handlePlatformError(platformError);
   }
 
+  /// Logs ✅ normally, ⚠️ if delegate fails
+  ///
+  /// Logs an analytics event with optional [msg] and [props].
+  static void event(
+    String name, {
+    String? msg,
+    String? icon,
+    Map<String, String>? props,
+  }) async {
+    try {
+      i._event(AnalyticsEvent.create(name, msg: msg, sign: icon, props: props));
+    } catch (msg) {
+      i._logError(msg, name: name, icon: "⚠️");
+    }
+  }
+
+  /// Logs 🟢 on success, 🔴 on failure
+  ///
+  /// Executes an asynchronous function and logs analytics results.
   static Future<void> call(
-    String name,
     AsyncCallback callback, {
+    String? name,
+    String? reason,
     String? msg,
   }) async {
     try {
       await callback();
-      i._log(name, "init", msg: msg);
+      i._log(name ?? 'call', reason ?? '', msg: msg, icon: "🟢");
     } catch (msg) {
-      i._logError(msg, name: name);
+      i._logError(msg, name: name, icon: "🔴");
     }
   }
 
-  static void log(String name, String reason, {String? msg}) async {
-    try {
-      i._log(name, reason, msg: msg);
-    } catch (msg) {
-      i._logError(msg, name: name);
-    }
-  }
-
-  static void event(
-    String name, {
+  /// Logs 🎯 on success, 🔥 on failure
+  ///
+  /// Executes an asynchronous function and logs analytics results.
+  static Future<T?> execute<T extends Object?>(
+    Future<T?> Function() callback, {
+    String? name,
     String? msg,
-    Map<String, String>? props,
   }) async {
     try {
-      i._event(AnalyticsEvent.create(name, msg: msg, props: props));
+      final result = await callback();
+      event(name ?? "execute", msg: msg, icon: '🎯');
+      return result;
     } catch (msg) {
-      i._logError(msg, name: name);
+      i._logError(msg, name: name, icon: "🔥");
+      return null;
+    }
+  }
+
+  /// Logs 🚀 on success, ⚠️ on failure
+  ///
+  /// Executes an asynchronous function and logs analytics results.
+  static Stream<T?> stream<T extends Object?>(
+    Stream<T?> Function() callback, {
+    String? name,
+    String? msg,
+  }) async* {
+    try {
+      yield* callback();
+      event(name ?? "stream", msg: msg, icon: "🚀");
+    } catch (msg) {
+      i._logError(msg, name: name, icon: "⚠️");
+      yield null;
+    }
+  }
+
+  /// Logs 👌 normally, ❌ if delegate fails
+  ///
+  /// Logs a custom message to the analytics delegate.
+  static void log(String name, String reason, {String? msg}) async {
+    try {
+      i._log(name, reason, msg: msg, icon: "👌");
+    } catch (msg) {
+      i._logError(msg, name: name, icon: "❌");
     }
   }
 }

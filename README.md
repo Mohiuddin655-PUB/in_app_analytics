@@ -1,167 +1,203 @@
-## Settings
+# 📊 Analytics
 
-A Flutter/Dart singleton manager for in-app settings with automatic type detection, supporting
-primitives, collections, maps, JSON, and optional custom storage delegates.
+A lightweight, platform-aware analytics and error tracking system for Flutter apps.  
+It captures events, logs, and errors (both Flutter and platform-level), with optional delegate handling for custom reporting, cloud sync, or local logging.
 
-## Features
+---
 
-- Singleton manager for app-wide settings.
-- Supports **primitive types**: `int`, `double`, `String`, `bool`, `null`.
-- Supports **collections**: `List<int>`, `List<double>`, `List<String>`, `List<bool>`.
-- Supports **maps and JSON** with nested structures.
-- Automatic **DataType detection** for stored values.
-- Optional **custom storage delegate** for local or remote persistence.
-- Operations:
-    - `get` — retrieve a value with type safety.
-    - `set` — store a value.
-    - `increment` — increment numeric values.
-    - `arrayUnion` — add elements to a list without duplicates.
-    - `arrayRemove` — remove elements from a list.
-- Handles **empty lists and maps** gracefully.
-- Built-in **logging support** for debugging.
-- Deep string parsing for numeric and boolean detection.
+## ⚙️ Features
 
-## Installation:
+- Singleton manager for centralized analytics and logging.
+- Tracks **custom events**, **logs**, and **errors** across the entire app.
+- Captures **Flutter framework errors** via `FlutterError.onError`.
+- Handles **platform-level exceptions** using `PlatformDispatcher.onError`.
+- Supports structured data models:
+  - `AnalyticsEvent` — for event tracking.
+  - `AnalyticsError` — for error reporting with stack traces.
+- Optional **delegate system** for integrating custom analytics services (e.g., Firebase, Sentry).
+- Configurable behavior:
+  - `enabled` — toggle analytics globally.
+  - `showLogs`, `showSuccessLogs`, `showLogTime` — for development insights.
+- Unified `call()` helper for safe execution of async functions with automatic success/failure tracking.
+- Provides built-in **logging and performance measurement hooks**.
+- Works seamlessly in both **Flutter UI** and **background isolates**.
+- Minimal dependencies and **zero setup overhead** — works out of the box.
 
-Add this to your pubspec.yaml:
-dependencies:
+---
 
-```base
-in_app_settings: ^1.0.0
-```
+## 🚀 Example Usage
 
-or,
-
-```shell
-flutter pub add in_app_settings
-```
-
-Then run:
-
-```shell
-flutter pub get
-```
-
-## Examples:
 ```dart
-import 'package:flutter/material.dart';
-import 'package:in_app_settings/in_app_analytics.dart';
+import 'package:in_app_analytics/analytics.dart';
 
-/// Example delegate storing settings in memory.
-class MySettingsDelegate implements SettingsDelegate {
-  final Map<String, dynamic> _store = {};
+void main() {
+  // Initialize Analytics once in your app
+  Analytics.init(
+    enabled: true,
+    showLogs: true,
+    delegate: MyAnalyticsDelegate(),
+  );
+
+  // Log a custom event
+  Analytics.event(
+    "purchase",
+    msg: "User purchased premium plan",
+    props: {"plan": "pro", "price": 9.99},
+  );
+
+  // Capture an error manually
+  try {
+    throw Exception("Something went wrong");
+  } catch (e, s) {
+    Analytics.error("manual_error", msg: e.toString(), stack: s);
+  }
+
+  // Use safe call for async tasks
+  Analytics.call("fetch_data", () async {
+    await Future.delayed(const Duration(seconds: 1));
+  }, msg: "Data fetched successfully");
+}
+```
+
+---
+
+## 🧪 Testing
+
+To ensure analytics works as expected, include this example test file:
+
+```dart
+
+/// A mock delegate used for testing Analytics events and errors.
+class MockAnalyticsDelegate extends AnalyticsDelegate {
+  final List<AnalyticsEvent> loggedEvents = [];
+  final List<AnalyticsError> loggedErrors = [];
+  final List<Map<String, dynamic>> loggedMessages = [];
 
   @override
-  bool backup(SettingsWriteRequest request) {
-    _store[request.path] = request.value;
-    return true;
+  Future<void> event(AnalyticsEvent event) async {
+    loggedEvents.add(event);
   }
 
   @override
-  Object? cache(SettingsReadRequest request) {
-    return _store[request.path];
+  Future<void> error(AnalyticsError error) async {
+    loggedErrors.add(error);
   }
 
   @override
-  Future<void> clean(Iterable<String> keys) async => _store.clear();
-
-  @override
-  Future<SettingsBackupResponse> get() async {
-    // GET FROM REMOTE
-    return SettingsBackupResponse.ok(_store);
-  }
-
-  @override
-  Future<void> set(SettingsWriteRequest request) async {
-    // SAVE TO REMOTE
-    _store[request.path] = request.value;
+  Future<void> log(String name, String? msg, String reason) async {
+    loggedMessages.add({
+      'name': name,
+      'msg': msg,
+      'reason': reason,
+    });
   }
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  // Ensures Flutter engine bindings are initialized before any test.
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Settings
-  await Settings.init(showLogs: true, delegate: MySettingsDelegate());
+  group('Analytics Tests', () {
+    late MockAnalyticsDelegate mock;
 
-  runApp(const MyApp());
+    setUp(() {
+      mock = MockAnalyticsDelegate();
+
+      // Initialize Analytics singleton
+      Analytics.init(
+        enabled: true,
+        delegate: mock,
+        showLogs: false,
+        showSuccessLogs: false,
+      );
+    });
+
+    test('logs an event successfully', () async {
+      Analytics.event("user_signup", msg: "User created an account");
+
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(mock.loggedEvents.length, 1);
+      final event = mock.loggedEvents.first;
+      expect(event.name, "user_signup");
+      expect(event.msg, "User created an account");
+      expect(event.platform?.isNotEmpty, isTrue);
+    });
+
+    test('logs an error using delegate', () async {
+      final error = AnalyticsError(
+        msg: "Test error",
+        platform: "ios",
+        time: DateTime.now().toIso8601String(),
+      );
+
+      await mock.error(error);
+      expect(mock.loggedErrors.length, 1);
+      expect(mock.loggedErrors.first.msg, "Test error");
+    });
+
+    test('logs a message with reason', () async {
+      Analytics.log("api_call", "init", msg: "Fetching user profile");
+
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(mock.loggedMessages.length, 1);
+      final log = mock.loggedMessages.first;
+      expect(log['name'], "api_call");
+      expect(log['reason'], "init");
+      expect(log['msg'], "Fetching user profile");
+    });
+
+    test('wraps async calls with Analytics.call()', () async {
+      await Analytics.call("fetch_data", () async {
+        await Future.delayed(const Duration(milliseconds: 5));
+      }, msg: "Data fetched successfully");
+
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(mock.loggedMessages.isNotEmpty, true);
+      expect(mock.loggedMessages.first['name'], "fetch_data");
+    });
+  });
 }
+```
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Run it with:
+```bash
+flutter test
+```
 
+---
+
+## 🧰 Delegate Example
+
+```dart
+class MyAnalyticsDelegate extends AnalyticsDelegate {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Settings Example',
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Settings Example')),
-        body: const SettingsDemo(),
-      ),
-    );
+  Future<void> event(AnalyticsEvent event) async {
+    print('📦 Event logged: ${event.name}');
   }
-}
-
-class SettingsDemo extends StatefulWidget {
-  const SettingsDemo({super.key});
 
   @override
-  State<SettingsDemo> createState() => _SettingsDemoState();
-}
+  Future<void> error(AnalyticsError error) async {
+    print('⚠️ Error: ${error.msg}');
+  }
 
-class _SettingsDemoState extends State<SettingsDemo> {
   @override
-  Widget build(BuildContext context) {
-    final counter = Settings.get('counter', 0);
-    final items = Settings.get('items', <String>[]);
-    final user = Settings.get('user', {'name': 'Guest'});
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Text('Counter: $counter'),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              Settings.increment('counter', 1);
-              setState(() {});
-            },
-            child: const Text('Increment Counter'),
-          ),
-          const SizedBox(height: 16),
-          Text('Items: ${items.join(', ')}'),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              Settings.arrayUnion('items', ['apple', 'banana']);
-              setState(() {});
-            },
-            child: const Text('Add Items'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Settings.arrayRemove('items', ['banana']);
-              setState(() {});
-            },
-            child: const Text('Remove Banana'),
-          ),
-          const SizedBox(height: 16),
-          Text('User: ${user['name']}'),
-          ElevatedButton(
-            onPressed: () {
-              Settings.set('user', {'name': 'Alice'});
-              setState(() {});
-            },
-            child: const Text('Set User Name to Alice'),
-          ),
-        ],
-      ),
-    );
+  Future<void> log(String name, String? msg, String reason) async {
+    print('📝 Log [$name]: $reason - ${msg ?? ""}');
   }
 }
 ```
 
-## License:
+---
 
-MIT License
+## 📘 Summary
+
+| Feature | Description |
+|----------|--------------|
+| ✅ Custom event tracking | Use `Analytics.event()` |
+| ⚠️ Error capturing | Automatic via Flutter and platform |
+| 🔌 Delegate integration | Plug into any backend or logger |
+| 🧩 Safe async calls | Use `Analytics.call()` |
+| 🧠 Minimal setup | Just `Analytics.init()` once |
