@@ -1,3 +1,7 @@
+## 1.0.4
+
+- Add warning log feature
+
 ## 1.0.3
 
 - Improved log feature

@@ -403,7 +403,29 @@ class Analytics {
     try {
       i._log(name, status, reason: reason, msg: msg, icon: status ? '👌' : "❌");
     } catch (msg) {
-      i._logError(msg, name: name, reason: reason, icon: "❌");
+      i._logError(msg, name: name, reason: reason, icon: "❌🟡");
+    }
+  }
+
+  /// Logs 🟡 normally, ❌ if delegate fails
+  ///
+  /// Logs a custom warning message to the analytics delegate.
+  static void warning(
+    String name,
+    String reason, {
+    bool status = true,
+    String? msg,
+  }) async {
+    try {
+      i._log(
+        name,
+        status,
+        reason: reason,
+        msg: msg,
+        icon: status ? '🟡' : "⚠️",
+      );
+    } catch (msg) {
+      i._logError(msg, name: name, reason: reason, icon: "⚠️");
     }
   }
 }
