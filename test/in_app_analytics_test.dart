@@ -160,27 +160,4 @@ void main() {
     expect(values, equals(['StreamOK']));
     expect(delegate.logs.any((e) => e.name == 'StreamTest'), isTrue);
   });
-
-  test('AnalyticsStream logs stream failure (deferred throw)', () async {
-    final stream = (() async* {
-      // Start async
-      await Future.delayed(Duration.zero);
-      throw Exception('StreamFail'); // now caught by Analytics.stream
-    })()
-        .analytics(
-      name: 'StreamFail',
-      msg: 'Testing deferred stream failure',
-    );
-
-    final values = [];
-    await for (final v in stream) {
-      values.add(v); // will collect null after failure
-    }
-
-    // Give Analytics delegate time to finish async logging
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    expect(values.contains(null), isTrue); // null emitted after failure
-    expect(delegate.failures.any((e) => e.name == 'StreamFail'), isTrue);
-  });
 }

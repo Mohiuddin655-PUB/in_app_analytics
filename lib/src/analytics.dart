@@ -13,7 +13,7 @@ const kAnalytics = "ANALYTICS";
 /// The main analytics manager used to record events and errors.
 class Analytics {
   /// Whether analytics tracking is enabled.
-  final bool enabled;
+  final bool _enabled;
 
   /// Whether to show logs in the console.
   final bool showLogs;
@@ -44,7 +44,7 @@ class Analytics {
 
   /// Private constructor for [Analytics].
   const Analytics._({
-    this.enabled = kReleaseMode,
+    bool enabled = kReleaseMode,
     this.showLogs = true,
     this.showSuccessLogs = true,
     this.name = kAnalytics,
@@ -54,7 +54,9 @@ class Analytics {
     this.successSequenceNumber,
     this.errorSequenceNumber,
     this.delegate,
-  });
+  }) : _enabled = enabled;
+
+  bool get enabled => _enabled && delegate != null;
 
   static Analytics? _i;
 
@@ -125,7 +127,6 @@ class Analytics {
   /// Logs ❌ or 🔥 if sending fails
   ///
   void _error(AnalyticsError error, {String? icon}) async {
-    if (delegate == null) return;
     try {
       if (enabled) await delegate!.error(error);
       _logError(error.msg, name: "error", icon: icon ?? error.sign ?? "❌");
@@ -135,7 +136,6 @@ class Analytics {
   }
 
   void _event(AnalyticsEvent event, bool success, {String? icon}) async {
-    if (delegate == null) return;
     try {
       if (success) {
         if (enabled) await delegate!.event(event);
@@ -166,7 +166,6 @@ class Analytics {
     String? msg,
     String? icon,
   }) async {
-    if (delegate == null) return;
     try {
       if (success) {
         if (enabled) {
@@ -234,7 +233,6 @@ class Analytics {
     FlutterExceptionHandler? widgetError,
     ErrorCallback? platformError,
   }) {
-    if (!enabled) return;
     _i = Analytics._(
       enabled: enabled,
       name: name,

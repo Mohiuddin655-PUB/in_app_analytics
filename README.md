@@ -66,98 +66,167 @@ void main() {
 To ensure analytics works as expected, include this example test file:
 
 ```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_analytics/in_app_analytics.dart';
 
-/// A mock delegate used for testing Analytics events and errors.
+/// A mock delegate to simulate Analytics delegate behavior.
 class MockAnalyticsDelegate extends AnalyticsDelegate {
-  final List<AnalyticsEvent> loggedEvents = [];
-  final List<AnalyticsError> loggedErrors = [];
-  final List<Map<String, dynamic>> loggedMessages = [];
+  final List<AnalyticsEvent> events = [];
+  final List<AnalyticsEvent> failures = [];
+  final List<AnalyticsError> errors = [];
+  final List<AnalyticsEvent> logs = [];
 
   @override
   Future<void> event(AnalyticsEvent event) async {
-    loggedEvents.add(event);
+    events.add(event);
+  }
+
+  @override
+  Future<void> failure(AnalyticsEvent event) async {
+    failures.add(event);
   }
 
   @override
   Future<void> error(AnalyticsError error) async {
-    loggedErrors.add(error);
+    errors.add(error);
   }
 
   @override
-  Future<void> log(String name, String? msg, String reason) async {
-    loggedMessages.add({
-      'name': name,
-      'msg': msg,
-      'reason': reason,
-    });
+  Future<void> log(AnalyticsEvent event) async {
+    logs.add(event);
   }
 }
 
 void main() {
-  // Ensures Flutter engine bindings are initialized before any test.
-  TestWidgetsFlutterBinding.ensureInitialized();
+  late MockAnalyticsDelegate delegate;
 
-  group('Analytics Tests', () {
-    late MockAnalyticsDelegate mock;
+  setUp(() {
+    delegate = MockAnalyticsDelegate();
+    Analytics.init(
+      enabled: true,
+      delegate: delegate,
+      showLogs: false,
+      showSuccessLogs: false,
+    );
+  });
 
-    setUp(() {
-      mock = MockAnalyticsDelegate();
+  // ---------------------------------------------------------------------------
+  // ANALYTICS CORE TESTS
+  // ---------------------------------------------------------------------------
 
-      // Initialize Analytics singleton
-      Analytics.init(
-        enabled: true,
-        delegate: mock,
-        showLogs: false,
-        showSuccessLogs: false,
-      );
+  test('Analytics initializes correctly', () {
+    expect(Analytics.i.enabled, isTrue);
+    expect(Analytics.i.delegate, isNotNull);
+    expect(Analytics.i.name, equals('ANALYTICS'));
+  });
+
+  test('Logs an event successfully', () async {
+    Analytics.event(
+      'user_login',
+      msg: 'User logged in successfully',
+      status: true,
+    );
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.events.length, equals(1));
+    expect(delegate.events.first.name, equals('user_login'));
+  });
+
+  test('Logs an event failure', () async {
+    Analytics.event(
+      'user_login',
+      msg: 'User login failed',
+      status: false,
+    );
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.failures.length, equals(1));
+    expect(delegate.failures.first.name, equals('user_login'));
+  });
+
+  test('Logs a synchronous call success', () async {
+    Analytics.call(() {
+      // success
+    }, name: 'sync_test');
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.logs.length, equals(1));
+    expect(delegate.logs.first.name, equals('sync_test'));
+  });
+
+  test('Logs a synchronous call failure', () async {
+    Analytics.call(() {
+      throw Exception('Test failure');
+    }, name: 'sync_fail');
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.failures.length, equals(1));
+  });
+
+  test('Logs an asynchronous call success', () async {
+    await Analytics.callAsync(() async {});
+    expect(delegate.logs.isNotEmpty, isTrue);
+  });
+
+  test('Logs execute function success', () {
+    final result = Analytics.execute(() => 'Hello');
+    expect(result, equals('Hello'));
+  });
+
+  test('Logs execute function failure', () {
+    final result = Analytics.execute(() {
+      throw Exception('Error');
     });
+    expect(result, isNull);
+  });
 
-    test('logs an event successfully', () async {
-      Analytics.event("user_signup", msg: "User created an account");
+  test('Logs future success', () async {
+    final result = await Analytics.future(() async => 123);
+    expect(result, equals(123));
+  });
 
-      await Future.delayed(const Duration(milliseconds: 10));
-
-      expect(mock.loggedEvents.length, 1);
-      final event = mock.loggedEvents.first;
-      expect(event.name, "user_signup");
-      expect(event.msg, "User created an account");
-      expect(event.platform?.isNotEmpty, isTrue);
+  test('Logs stream success', () async {
+    final stream = Analytics.stream(() async* {
+      yield 'stream_data';
     });
+    final values = await stream.toList();
+    expect(values.contains('stream_data'), isTrue);
+  });
 
-    test('logs an error using delegate', () async {
-      final error = AnalyticsError(
-        msg: "Test error",
-        platform: "ios",
-        time: DateTime.now().toIso8601String(),
-      );
+  test('Logs custom message', () async {
+    Analytics.log('custom_log', 'testing', msg: 'Message OK');
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.logs.length, greaterThan(0));
+  });
 
-      await mock.error(error);
-      expect(mock.loggedErrors.length, 1);
-      expect(mock.loggedErrors.first.msg, "Test error");
-    });
+  // ---------------------------------------------------------------------------
+  // EXTENSIONS TESTS (FutureTExecutor & StreamTExecutor)
+  // ---------------------------------------------------------------------------
 
-    test('logs a message with reason', () async {
-      Analytics.log("api_call", "init", msg: "Fetching user profile");
+  test('AnalyticsFuture logs success', () async {
+    final result = await Future.value('Success').analytics(
+      name: 'FutureTest',
+      msg: 'Testing future extension',
+    );
+    expect(result, equals('Success'));
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.logs.any((e) => e.name == 'FutureTest'), isTrue);
+  });
 
-      await Future.delayed(const Duration(milliseconds: 10));
+  test('AnalyticsFuture logs failure', () async {
+    final result = await Future.error(Exception('Failed')).analytics(
+      name: 'FutureFail',
+      msg: 'Testing future failure',
+    );
+    expect(result, isNull);
+    await Future.delayed(const Duration(milliseconds: 100));
+    expect(delegate.failures.any((e) => e.name == 'FutureFail'), isTrue);
+  });
 
-      expect(mock.loggedMessages.length, 1);
-      final log = mock.loggedMessages.first;
-      expect(log['name'], "api_call");
-      expect(log['reason'], "init");
-      expect(log['msg'], "Fetching user profile");
-    });
-
-    test('wraps async calls with Analytics.call()', () async {
-      await Analytics.call("fetch_data", () async {
-        await Future.delayed(const Duration(milliseconds: 5));
-      }, msg: "Data fetched successfully");
-
-      await Future.delayed(const Duration(milliseconds: 10));
-
-      expect(mock.loggedMessages.isNotEmpty, true);
-      expect(mock.loggedMessages.first['name'], "fetch_data");
-    });
+  test('AnalyticsStream logs stream success', () async {
+    final stream = Stream.value('StreamOK').analytics(
+      name: 'StreamTest',
+      msg: 'Testing stream extension',
+    );
+    final values = await stream.toList();
+    expect(values, equals(['StreamOK']));
+    expect(delegate.logs.any((e) => e.name == 'StreamTest'), isTrue);
   });
 }
 ```

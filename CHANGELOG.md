@@ -1,3 +1,7 @@
+## 1.0.3
+
+- Improved log feature
+
 ## 1.0.2
 
 - Improve analytics
