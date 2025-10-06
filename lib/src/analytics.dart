@@ -65,6 +65,7 @@ class Analytics {
   void _logs(
     Object? msg, {
     String? name,
+    String? reason,
     String? status,
     String? icon,
     int? level,
@@ -77,11 +78,14 @@ class Analytics {
     if (name != null && name.isNotEmpty) {
       log = "$log$name";
     }
-    if (msg != null) {
-      log = "$log:$msg";
+    if (reason != null && reason.isNotEmpty) {
+      log = "$log[$reason]";
     }
     if (status != null && status.isNotEmpty) {
-      log = "$log($status)";
+      log = "$log => $status";
+    }
+    if (msg != null) {
+      log = "$log:$msg";
     }
     dev.log(
       log,
@@ -92,11 +96,12 @@ class Analytics {
     );
   }
 
-  void _logSuccess(Object? msg, {String? name, String? icon}) {
+  void _logSuccess(Object? msg, {String? name, String? reason, String? icon}) {
     if (!enabled || !showSuccessLogs) return;
     _logs(
       msg,
       status: "done!",
+      reason: reason,
       icon: icon ?? "✅",
       name: name,
       level: successLogLevel,
@@ -104,11 +109,12 @@ class Analytics {
     );
   }
 
-  void _logError(Object? msg, {String? name, String? icon}) {
+  void _logError(Object? msg, {String? name, String? reason, String? icon}) {
     if (!enabled || !showLogs) return;
     _logs(
       msg,
       status: 'failed!',
+      reason: reason,
       icon: icon ?? "️️❌️",
       name: name,
       level: errorLogLevel,
@@ -128,23 +134,61 @@ class Analytics {
     }
   }
 
-  void _event(AnalyticsEvent event, {String? icon}) async {
+  void _event(AnalyticsEvent event, bool success, {String? icon}) async {
     if (!enabled || delegate == null) return;
     try {
-      await delegate!.event(event);
-      _logSuccess(event.msg, name: event.name, icon: icon ?? event.sign ?? "✅");
+      if (success) {
+        await delegate!.event(event);
+        _logSuccess(
+          event.msg,
+          name: event.name,
+          reason: event.reason,
+          icon: icon ?? event.sign ?? "✅",
+        );
+        return;
+      }
+      await delegate!.failure(event);
+      _logError(
+        event.msg,
+        name: event.name,
+        reason: event.reason,
+        icon: icon ?? event.sign ?? "❌",
+      );
     } catch (msg) {
-      _logError(msg, name: event.name, icon: "⚠️");
+      _logError(msg, name: event.name, icon: "⚠️", reason: event.reason);
     }
   }
 
-  void _log(String name, String reason, {String? msg, String? icon}) async {
+  void _log(
+    String name,
+    bool success, {
+    String? reason,
+    String? msg,
+    String? icon,
+  }) async {
     if (!enabled || delegate == null) return;
     try {
-      await delegate!.log(name, msg, reason);
-      _logSuccess(msg, name: name, icon: icon ?? "👌");
+      if (success) {
+        await delegate!.log(AnalyticsEvent.create(
+          name,
+          msg: msg,
+          reason: reason,
+          sign: icon ?? "✅",
+        ));
+        _logSuccess(msg, name: name, icon: icon ?? "👌", reason: reason);
+        return;
+      }
+      await delegate!.failure(
+        AnalyticsEvent.create(
+          name,
+          reason: reason,
+          msg: msg,
+          sign: icon ?? "❌",
+        ),
+      );
+      _logError(msg, name: name, icon: icon ?? "❌", reason: reason);
     } catch (msg) {
-      _logError(msg, name: name, icon: "❌");
+      _logError(msg, name: name, icon: "❌", reason: reason);
     }
   }
 
@@ -203,17 +247,23 @@ class Analytics {
     i._handlePlatformError(platformError);
   }
 
-  /// Logs ✅ normally, ⚠️ if delegate fails
+  /// Logs ✅ normally, ⚠️ if fails
   ///
   /// Logs an analytics event with optional [msg] and [props].
+  /// Status: true normally, false if fails
   static void event(
     String name, {
+    String? reason,
     String? msg,
+    bool status = true,
     String? icon,
     Map<String, String>? props,
   }) async {
     try {
-      i._event(AnalyticsEvent.create(name, msg: msg, sign: icon, props: props));
+      i._event(
+        AnalyticsEvent.create(name, msg: msg, sign: icon, props: props),
+        status,
+      );
     } catch (msg) {
       i._logError(msg, name: name, icon: "⚠️");
     }
@@ -221,8 +271,31 @@ class Analytics {
 
   /// Logs 🟢 on success, 🔴 on failure
   ///
+  /// Executes an synchronous function and logs analytics results.
+  static void call(
+    VoidCallback callback, {
+    String? name,
+    String? reason,
+    String? msg,
+  }) async {
+    try {
+      callback();
+      i._log(name ?? 'call', true, reason: reason, msg: msg, icon: "🟢");
+    } catch (msg) {
+      i._log(
+        name ?? 'call',
+        false,
+        reason: reason,
+        msg: msg.toString(),
+        icon: "🔴",
+      );
+    }
+  }
+
+  /// Logs 🟢 on success, 🔴 on failure
+  ///
   /// Executes an asynchronous function and logs analytics results.
-  static Future<void> call(
+  static Future<void> callAsync(
     AsyncCallback callback, {
     String? name,
     String? reason,
@@ -230,26 +303,64 @@ class Analytics {
   }) async {
     try {
       await callback();
-      i._log(name ?? 'call', reason ?? '', msg: msg, icon: "🟢");
+      i._log(name ?? 'call_async', true, reason: reason, msg: msg, icon: "🟢");
     } catch (msg) {
-      i._logError(msg, name: name, icon: "🔴");
+      i._log(
+        name ?? 'call_async',
+        false,
+        reason: reason,
+        msg: msg.toString(),
+        icon: "🔴",
+      );
+    }
+  }
+
+  /// Logs 🎯 on success, 🔥 on failure
+  ///
+  /// Executes an synchronous function and logs analytics results.
+  static T? execute<T extends Object?>(
+    T? Function() callback, {
+    String? name,
+    String? reason,
+    String? msg,
+  }) {
+    try {
+      final result = callback();
+      i._log(name ?? "execute", true, reason: reason, msg: msg, icon: '🎯');
+      return result;
+    } catch (msg) {
+      i._log(
+        name ?? "execute",
+        false,
+        reason: reason,
+        msg: msg.toString(),
+        icon: "🔥",
+      );
+      return null;
     }
   }
 
   /// Logs 🎯 on success, 🔥 on failure
   ///
   /// Executes an asynchronous function and logs analytics results.
-  static Future<T?> execute<T extends Object?>(
+  static Future<T?> future<T extends Object?>(
     Future<T?> Function() callback, {
     String? name,
+    String? reason,
     String? msg,
   }) async {
     try {
       final result = await callback();
-      event(name ?? "execute", msg: msg, icon: '🎯');
+      i._log(name ?? "future", true, reason: reason, msg: msg, icon: '🎯');
       return result;
     } catch (msg) {
-      i._logError(msg, name: name, icon: "🔥");
+      i._log(
+        name ?? "future",
+        false,
+        reason: reason,
+        msg: msg.toString(),
+        icon: "🔥",
+      );
       return null;
     }
   }
@@ -260,13 +371,20 @@ class Analytics {
   static Stream<T?> stream<T extends Object?>(
     Stream<T?> Function() callback, {
     String? name,
+    String? reason,
     String? msg,
   }) async* {
     try {
       yield* callback();
-      event(name ?? "stream", msg: msg, icon: "🚀");
+      i._log(name ?? "stream", true, reason: reason, msg: msg, icon: '🚀');
     } catch (msg) {
-      i._logError(msg, name: name, icon: "⚠️");
+      i._log(
+        name ?? "stream",
+        false,
+        reason: reason,
+        msg: msg.toString(),
+        icon: "⚠️",
+      );
       yield null;
     }
   }
@@ -274,11 +392,16 @@ class Analytics {
   /// Logs 👌 normally, ❌ if delegate fails
   ///
   /// Logs a custom message to the analytics delegate.
-  static void log(String name, String reason, {String? msg}) async {
+  static void log(
+    String name,
+    String reason, {
+    bool status = true,
+    String? msg,
+  }) async {
     try {
-      i._log(name, reason, msg: msg, icon: "👌");
+      i._log(name, status, reason: reason, msg: msg, icon: status ? '👌' : "❌");
     } catch (msg) {
-      i._logError(msg, name: name, icon: "❌");
+      i._logError(msg, name: name, reason: reason, icon: "❌");
     }
   }
 }

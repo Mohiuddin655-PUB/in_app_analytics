@@ -152,6 +152,9 @@ class AnalyticsEvent {
   /// The event name.
   final String name;
 
+  /// The event reason.
+  final String? reason;
+
   /// The timestamp in milliseconds.
   final int time;
 
@@ -173,6 +176,7 @@ class AnalyticsEvent {
   /// Creates a new analytics event.
   const AnalyticsEvent({
     required this.name,
+    this.reason,
     this.time = 0,
     this.sign,
     this.platform,
@@ -183,6 +187,7 @@ class AnalyticsEvent {
   /// Creates an [AnalyticsEvent] from the current time and platform.
   factory AnalyticsEvent.create(
     String name, {
+    String? reason,
     String? sign,
     String? msg,
     Map<String, String>? props,
@@ -191,6 +196,7 @@ class AnalyticsEvent {
       platform: _platform,
       time: DateTime.now().millisecondsSinceEpoch,
       name: name,
+      reason: reason,
       sign: sign ?? "✅",
       msg: msg,
       props: props,
@@ -203,6 +209,7 @@ class AnalyticsEvent {
     final name = source['name'];
     if (name is! String || name.isEmpty) return AnalyticsEvent.empty();
     final time = source['time'];
+    final reason = source['reason'];
     final platform = source['platform'];
     final sign = source['sign'];
     final msg = source['msg'];
@@ -211,6 +218,7 @@ class AnalyticsEvent {
       name: name,
       time: time is num ? time.toInt() : 0,
       platform: platform is String ? platform : null,
+      reason: reason is String ? reason : null,
       sign: sign is String ? sign : null,
       msg: msg is String ? msg : null,
       props: props is Map
@@ -225,6 +233,7 @@ class AnalyticsEvent {
       if (name.isNotEmpty) "name": name,
       if (time > 0) "time": time,
       if ((platform ?? '').isNotEmpty) "platform": platform,
+      if ((reason ?? '').isNotEmpty) "reason": reason,
       if ((sign ?? '').isNotEmpty) "sign": sign,
       if ((msg ?? '').isNotEmpty) "msg": msg,
       if (props != null || props!.isNotEmpty) "props": props,
@@ -233,5 +242,7 @@ class AnalyticsEvent {
   }
 
   @override
-  String toString() => "$AnalyticsEvent($sign $name: $msg)";
+  String toString() {
+    return "$AnalyticsEvent($sign $name${reason != null ? "[$reason]" : ''}: $msg)";
+  }
 }

@@ -13,8 +13,14 @@ class MyAnalyticsDelegate implements AnalyticsDelegate {
   }
 
   @override
-  Future<void> log(String name, String? msg, String reason) async {
+  Future<void> log(AnalyticsEvent event) async {
     // Custom log storage or service
+  }
+
+  @override
+  Future<void> failure(AnalyticsEvent event) {
+    // TODO: implement failure
+    throw UnimplementedError();
   }
 }
 

@@ -8,6 +8,9 @@ abstract class AnalyticsDelegate {
   /// Called when an event is logged.
   Future<void> event(AnalyticsEvent event);
 
+  /// Called when an event is logged failed.
+  Future<void> failure(AnalyticsEvent event);
+
   /// Called when a generic log message is written.
-  Future<void> log(String name, String? msg, String reason);
+  Future<void> log(AnalyticsEvent event);
 }
