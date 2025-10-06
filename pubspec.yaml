@@ -1,6 +1,6 @@
 name: in_app_analytics
 description: "A lightweight, platform-aware analytics and error tracking system for Flutter apps."
-version: 1.0.1
+version: 1.0.2
 repository: https://github.com/Mohiuddin655-PUB/in_app_analytics
 
 environment:

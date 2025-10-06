@@ -44,7 +44,7 @@ class Analytics {
 
   /// Private constructor for [Analytics].
   const Analytics._({
-    this.enabled = false,
+    this.enabled = kReleaseMode,
     this.showLogs = true,
     this.showSuccessLogs = true,
     this.name = kAnalytics,
@@ -97,7 +97,7 @@ class Analytics {
   }
 
   void _logSuccess(Object? msg, {String? name, String? reason, String? icon}) {
-    if (!enabled || !showSuccessLogs) return;
+    if (!showSuccessLogs) return;
     _logs(
       msg,
       status: "done!",
@@ -110,7 +110,7 @@ class Analytics {
   }
 
   void _logError(Object? msg, {String? name, String? reason, String? icon}) {
-    if (!enabled || !showLogs) return;
+    if (!showLogs) return;
     _logs(
       msg,
       status: 'failed!',
@@ -125,9 +125,9 @@ class Analytics {
   /// Logs ❌ or 🔥 if sending fails
   ///
   void _error(AnalyticsError error, {String? icon}) async {
-    if (!enabled || delegate == null) return;
+    if (delegate == null) return;
     try {
-      await delegate!.error(error);
+      if (enabled) await delegate!.error(error);
       _logError(error.msg, name: "error", icon: icon ?? error.sign ?? "❌");
     } catch (msg) {
       _logError(msg, name: "error", icon: "🔥");
@@ -135,10 +135,10 @@ class Analytics {
   }
 
   void _event(AnalyticsEvent event, bool success, {String? icon}) async {
-    if (!enabled || delegate == null) return;
+    if (delegate == null) return;
     try {
       if (success) {
-        await delegate!.event(event);
+        if (enabled) await delegate!.event(event);
         _logSuccess(
           event.msg,
           name: event.name,
@@ -147,7 +147,7 @@ class Analytics {
         );
         return;
       }
-      await delegate!.failure(event);
+      if (enabled) await delegate!.failure(event);
       _logError(
         event.msg,
         name: event.name,
@@ -166,26 +166,30 @@ class Analytics {
     String? msg,
     String? icon,
   }) async {
-    if (!enabled || delegate == null) return;
+    if (delegate == null) return;
     try {
       if (success) {
-        await delegate!.log(AnalyticsEvent.create(
-          name,
-          msg: msg,
-          reason: reason,
-          sign: icon ?? "✅",
-        ));
+        if (enabled) {
+          await delegate!.log(AnalyticsEvent.create(
+            name,
+            msg: msg,
+            reason: reason,
+            sign: icon ?? "✅",
+          ));
+        }
         _logSuccess(msg, name: name, icon: icon ?? "👌", reason: reason);
         return;
       }
-      await delegate!.failure(
-        AnalyticsEvent.create(
-          name,
-          reason: reason,
-          msg: msg,
-          sign: icon ?? "❌",
-        ),
-      );
+      if (enabled) {
+        await delegate!.failure(
+          AnalyticsEvent.create(
+            name,
+            reason: reason,
+            msg: msg,
+            sign: icon ?? "❌",
+          ),
+        );
+      }
       _logError(msg, name: name, icon: icon ?? "❌", reason: reason);
     } catch (msg) {
       _logError(msg, name: name, icon: "❌", reason: reason);

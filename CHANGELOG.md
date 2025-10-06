@@ -1,3 +1,7 @@
+## 1.0.2
+
+- Improve analytics
+
 ## 1.0.1
 
 - Improved analytics
