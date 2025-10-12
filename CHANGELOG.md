@@ -1,3 +1,7 @@
+## 1.0.6
+
+* Analytics pros improved
+
 ## 1.0.5
 
 * LogThrowEnabled support

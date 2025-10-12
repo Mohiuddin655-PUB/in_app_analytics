@@ -270,7 +270,7 @@ class Analytics {
     String? msg,
     bool status = true,
     String? icon,
-    Map<String, String>? props,
+    Map<String, Object>? props,
   }) async {
     try {
       i._event(
