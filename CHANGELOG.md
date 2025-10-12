@@ -1,5 +1,7 @@
 ## 1.0.8
 
+* Add models path for in_app_analytics
+
 ## 1.0.7
 
 * Add AnalyticsEventItem with fields instances
