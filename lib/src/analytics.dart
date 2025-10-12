@@ -15,6 +15,8 @@ class Analytics {
   /// Whether analytics tracking is enabled.
   final bool _enabled;
 
+  final bool logThrowEnabled;
+
   /// Whether to show logs in the console.
   final bool showLogs;
 
@@ -45,6 +47,7 @@ class Analytics {
   /// Private constructor for [Analytics].
   const Analytics._({
     bool enabled = kReleaseMode,
+    this.logThrowEnabled = kDebugMode,
     this.showLogs = true,
     this.showSuccessLogs = true,
     this.name = kAnalytics,
@@ -131,6 +134,7 @@ class Analytics {
       if (enabled) await delegate!.error(error);
       _logError(error.msg, name: "error", icon: icon ?? error.sign ?? "❌");
     } catch (msg) {
+      if (!logThrowEnabled) rethrow;
       _logError(msg, name: "error", icon: "🔥");
     }
   }
@@ -155,6 +159,7 @@ class Analytics {
         icon: icon ?? event.sign ?? "❌",
       );
     } catch (msg) {
+      if (!logThrowEnabled) rethrow;
       _logError(msg, name: event.name, icon: "⚠️", reason: event.reason);
     }
   }
@@ -191,6 +196,7 @@ class Analytics {
       }
       _logError(msg, name: name, icon: icon ?? "❌", reason: reason);
     } catch (msg) {
+      if (!logThrowEnabled) rethrow;
       _logError(msg, name: name, icon: "❌", reason: reason);
     }
   }
@@ -199,6 +205,8 @@ class Analytics {
     FlutterError.onError = (FlutterErrorDetails details) {
       _error(AnalyticsError.error(details));
       if (handler != null) handler(details);
+      if (logThrowEnabled) FlutterError.presentError(details);
+      if (enabled) delegate!.widget(details);
     };
   }
 
@@ -206,7 +214,8 @@ class Analytics {
     PlatformDispatcher.instance.onError = (e, st) {
       _error(AnalyticsError.platform(e, st));
       if (handler != null) return handler(e, st);
-      return false;
+      if (enabled) delegate!.platform(e, st);
+      return !logThrowEnabled;
     };
   }
 
@@ -221,6 +230,7 @@ class Analytics {
   /// ```
   static void init({
     bool enabled = kReleaseMode,
+    bool logThrowEnabled = kDebugMode,
     String name = kAnalytics,
     bool showLogs = true,
     bool showSuccessLogs = true,
@@ -235,6 +245,7 @@ class Analytics {
   }) {
     _i = Analytics._(
       enabled: enabled,
+      logThrowEnabled: logThrowEnabled,
       name: name,
       showLogs: showLogs,
       showSuccessLogs: showSuccessLogs,
@@ -267,6 +278,7 @@ class Analytics {
         status,
       );
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._logError(msg, name: name, icon: "⚠️");
     }
   }
@@ -284,6 +296,7 @@ class Analytics {
       callback();
       i._log(name ?? 'call', true, reason: reason, msg: msg, icon: "🟢");
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._log(
         name ?? 'call',
         false,
@@ -307,6 +320,7 @@ class Analytics {
       await callback();
       i._log(name ?? 'call_async', true, reason: reason, msg: msg, icon: "🟢");
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._log(
         name ?? 'call_async',
         false,
@@ -331,6 +345,7 @@ class Analytics {
       i._log(name ?? "execute", true, reason: reason, msg: msg, icon: '🎯');
       return result;
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._log(
         name ?? "execute",
         false,
@@ -356,6 +371,7 @@ class Analytics {
       i._log(name ?? "future", true, reason: reason, msg: msg, icon: '🎯');
       return result;
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._log(
         name ?? "future",
         false,
@@ -380,6 +396,7 @@ class Analytics {
       yield* callback();
       i._log(name ?? "stream", true, reason: reason, msg: msg, icon: '🚀');
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._log(
         name ?? "stream",
         false,
@@ -403,6 +420,7 @@ class Analytics {
     try {
       i._log(name, status, reason: reason, msg: msg, icon: status ? '👌' : "❌");
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._logError(msg, name: name, reason: reason, icon: "❌🟡");
     }
   }
@@ -425,6 +443,7 @@ class Analytics {
         icon: status ? '🟡' : "⚠️",
       );
     } catch (msg) {
+      if (i.logThrowEnabled) rethrow;
       i._logError(msg, name: name, reason: reason, icon: "⚠️");
     }
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:in_app_analytics/in_app_analytics.dart';
 
-class MyAnalyticsDelegate implements AnalyticsDelegate {
+class MyAnalyticsDelegate extends AnalyticsDelegate {
   @override
   Future<void> error(AnalyticsError error) async {
     // Send error to server, Firebase Crashlytics, or just log to console

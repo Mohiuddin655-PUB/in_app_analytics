@@ -1,3 +1,7 @@
+## 1.0.5
+
+* LogThrowEnabled support
+
 ## 1.0.4
 
 - Add warning log feature

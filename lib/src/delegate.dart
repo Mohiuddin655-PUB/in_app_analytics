@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 import 'event.dart';
 
 /// Defines a delegate to handle analytics operations.
@@ -13,4 +15,8 @@ abstract class AnalyticsDelegate {
 
   /// Called when a generic log message is written.
   Future<void> log(AnalyticsEvent event);
+
+  void platform(Object error, StackTrace stackTrace) {}
+
+  void widget(FlutterErrorDetails details) {}
 }

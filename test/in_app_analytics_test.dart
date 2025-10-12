@@ -36,6 +36,7 @@ void main() {
     delegate = MockAnalyticsDelegate();
     Analytics.init(
       enabled: true,
+      logThrowEnabled: false,
       delegate: delegate,
       showLogs: false,
       showSuccessLogs: false,

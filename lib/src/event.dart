@@ -27,8 +27,8 @@ enum AnalyticsErrorType {
   /// Represents an [AssertionError].
   assertion,
 
-  /// Represents a runtime error or exception.
-  error,
+  /// Represents a runtime widget error or exception.
+  widget,
 
   /// Represents a platform-level error.
   platform;
@@ -95,7 +95,7 @@ class AnalyticsError {
               : "💥",
       type: details.exception is AssertionError
           ? AnalyticsErrorType.assertion
-          : AnalyticsErrorType.error,
+          : AnalyticsErrorType.widget,
     );
   }
 
@@ -144,7 +144,9 @@ class AnalyticsError {
   }
 
   @override
-  String toString() => "$AnalyticsError($sign $msg: $details)";
+  String toString() {
+    return "$AnalyticsError($sign ${type?.name ?? 'error'}: $msg - $details)";
+  }
 }
 
 /// Represents a logged analytics event.
