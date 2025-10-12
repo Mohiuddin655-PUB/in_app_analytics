@@ -1,3 +1,7 @@
+## 1.0.7
+
+* Add AnalyticsEventItem with fields instances
+
 ## 1.0.6
 
 * Analytics pros improved
