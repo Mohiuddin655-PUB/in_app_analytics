@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:in_app_analytics/analytics.dart';
 
 /// Returns the current platform identifier as a string.
 /// Supported values: `web`, `wasm`, `android`, `ios`, `fuchsia`, `macos`, `windows`, `linux`.
@@ -171,12 +172,13 @@ class AnalyticsEvent {
 
   /// Optional custom event properties.
   final Map<String, Object>? props;
+  final Map<String, Object>? extra;
 
   /// Creates an empty [AnalyticsEvent].
-  const AnalyticsEvent.empty() : this(name: '');
+  const AnalyticsEvent.empty() : this._(name: '');
 
   /// Creates a new analytics event.
-  const AnalyticsEvent({
+  const AnalyticsEvent._({
     required this.name,
     this.reason,
     this.time = 0,
@@ -184,6 +186,7 @@ class AnalyticsEvent {
     this.platform,
     this.msg,
     this.props,
+    this.extra,
   });
 
   /// Creates an [AnalyticsEvent] from the current time and platform.
@@ -194,7 +197,7 @@ class AnalyticsEvent {
     String? msg,
     Map<String, Object>? props,
   }) {
-    return AnalyticsEvent(
+    return AnalyticsEvent._(
       platform: _platform,
       time: DateTime.now().millisecondsSinceEpoch,
       name: name,
@@ -203,6 +206,10 @@ class AnalyticsEvent {
       msg: msg,
       props: props,
     );
+  }
+
+  factory AnalyticsEvent.params(String name, Map<String, Object> parameters) {
+    return AnalyticsEvent._(name: name, extra: parameters);
   }
 
   /// Parses a JSON-like [Map] into an [AnalyticsEvent].
@@ -216,7 +223,7 @@ class AnalyticsEvent {
     final sign = source['sign'];
     final msg = source['msg'];
     final props = source['props'];
-    return AnalyticsEvent(
+    return AnalyticsEvent._(
       name: name,
       time: time is num ? time.toInt() : 0,
       platform: platform is String ? platform : null,
@@ -229,8 +236,37 @@ class AnalyticsEvent {
     );
   }
 
+  Map<String, Object>? _filter(Map<String, Object>? props) {
+    if (props == null || props.isEmpty) return null;
+    Object? value(Object? v) {
+      if (v is num) return v;
+      if (v is String) return v;
+      if (v is bool) return v;
+      if (v is EventItem) return v.asMap();
+      if (v is Iterable) {
+        return v.map(value).toList();
+      }
+      if (v is Map) {
+        return v.map((k, v) {
+          return MapEntry(k.toString(), value(v));
+        });
+      }
+      return null;
+    }
+
+    final entries = props.entries.map((e) {
+      final k = e.key;
+      final v = value(e.value);
+      if (v == null) return null;
+      return MapEntry(k, v);
+    }).whereType<MapEntry<String, Object>>();
+    return Map.fromEntries(entries);
+  }
+
   /// Returns this event as a JSON-compatible [Map].
   Map<String, dynamic>? get json {
+    final props = _filter(this.props);
+    final extra = _filter(this.extra);
     final x = {
       if (name.isNotEmpty) "name": name,
       if (time > 0) "time": time,
@@ -238,7 +274,10 @@ class AnalyticsEvent {
       if ((reason ?? '').isNotEmpty) "reason": reason,
       if ((sign ?? '').isNotEmpty) "sign": sign,
       if ((msg ?? '').isNotEmpty) "msg": msg,
-      if (props != null || props!.isNotEmpty) "props": props,
+      if (props != null && props.isNotEmpty)
+        "props": props
+      else if (extra != null && extra.isNotEmpty)
+        "props": extra,
     };
     return x.isEmpty ? null : x;
   }

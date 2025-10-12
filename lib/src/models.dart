@@ -75,8 +75,8 @@ abstract final class EventFields {
   static const itemCategory = "itemCategory";
 }
 
-class AnalyticsEventItem {
-  const AnalyticsEventItem({
+class EventItem {
+  const EventItem({
     this.affiliation,
     this.currency,
     this.coupon,
@@ -239,6 +239,6 @@ class AnalyticsEventItem {
 
   @override
   String toString() {
-    return '$AnalyticsEventItem(${asMap()})';
+    return '$EventItem(${asMap()})';
   }
 }
