@@ -170,7 +170,7 @@ class AnalyticsEvent {
   final String? sign;
 
   /// Optional custom event properties.
-  final Map<String, String>? props;
+  final Map<String, dynamic>? props;
 
   /// Creates an empty [AnalyticsEvent].
   const AnalyticsEvent.empty() : this(name: '');
@@ -192,7 +192,7 @@ class AnalyticsEvent {
     String? reason,
     String? sign,
     String? msg,
-    Map<String, String>? props,
+    Map<String, dynamic>? props,
   }) {
     return AnalyticsEvent(
       platform: _platform,
