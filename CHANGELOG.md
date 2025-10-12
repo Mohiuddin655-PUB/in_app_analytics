@@ -1,3 +1,7 @@
+## 1.0.9
+
+* Improve analytics
+
 ## 1.0.8
 
 * Add models path for in_app_analytics
